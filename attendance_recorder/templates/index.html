@@ -115,6 +115,17 @@
     .details-section {
       margin-bottom: 2rem;
     }
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      max-height: 60vh;
+      height: 320px;
+    }
+    .chart-wrapper canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
     .table-wrapper {
       overflow-x: auto;
       border: 1px solid #30363d;
@@ -211,7 +222,9 @@
 
     <section class="chart-section">
       <h2>Attendance Trend</h2>
-      <canvas id="attendanceChart" height="220"></canvas>
+      <div class="chart-wrapper">
+        <canvas id="attendanceChart" aria-label="Attendance trend line chart"></canvas>
+      </div>
     </section>
 
     <section class="table-section">
