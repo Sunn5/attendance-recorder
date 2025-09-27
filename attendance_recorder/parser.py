@@ -90,7 +90,7 @@ def parse_datetime(value: str) -> datetime:
 def read_rows(path: Path) -> List[ParsedRow]:
     """Read attendance rows from a CSV/TSV file."""
 
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8-sig")
     sample = text[:1024]
     delimiter = sniff_delimiter(sample) if sample else ","
 
