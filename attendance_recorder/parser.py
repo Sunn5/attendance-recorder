@@ -87,10 +87,9 @@ def parse_datetime(value: str) -> datetime:
     raise ParseError(f"Unable to parse timestamp '{value}'")
 
 
-def read_rows(path: Path) -> List[ParsedRow]:
-    """Read attendance rows from a CSV/TSV file."""
+def parse_rows_from_text(text: str) -> List[ParsedRow]:
+    """Parse attendance rows from a text payload."""
 
-    text = path.read_text(encoding="utf-8-sig")
     sample = text[:1024]
     delimiter = sniff_delimiter(sample) if sample else ","
 
@@ -121,3 +120,10 @@ def read_rows(path: Path) -> List[ParsedRow]:
         rows.append(ParsedRow(timestamp=timestamp, name=name, email=email))
 
     return rows
+
+
+def read_rows(path: Path) -> List[ParsedRow]:
+    """Read attendance rows from a CSV/TSV file."""
+
+    text = path.read_text(encoding="utf-8-sig")
+    return parse_rows_from_text(text)

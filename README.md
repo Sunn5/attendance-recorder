@@ -10,7 +10,7 @@ each date.
 
 ## Getting started
 
-The project has no external dependencies beyond Python 3.10+.  You can run it
+The command line workflow has no external dependencies beyond Python 3.10+.  The optional web dashboard depends on Flask (install with `pip install flask`).  You can run it
 directly from the repository:
 
 ```bash
@@ -61,3 +61,18 @@ python -m attendance_recorder export --output exported.json
 
 A small sample export is included in `examples/sample_attendance.csv` so you can
 test the workflow without connecting to Microsoft Forms.
+
+### Visualise attendance in the browser
+
+You can launch a lightweight web dashboard to explore the stored data.
+
+1. Install Flask (once): `pip install flask`
+2. Ensure your `attendance_data.json` is up to date (import with the CLI if needed).
+3. Start the server from the repository root:
+   ```bash
+   python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000
+   ```
+4. Visit http://127.0.0.1:5000 in your browser. Upload additional CSV/TSV exports to merge them and refresh the charts.
+
+Use `Ctrl+C` in the terminal to stop the server.
+

@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Attendance Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 2rem;
+    }
+    h1, h2 {
+      margin-top: 0;
+    }
+    a {
+      color: #58a6ff;
+    }
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 2rem;
+    }
+    header p {
+      margin: 0.25rem 0 0 0;
+      color: #8b949e;
+    }
+    .message {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.5rem;
+      border: 1px solid;
+    }
+    .message.success {
+      background: rgba(46, 160, 67, 0.15);
+      border-color: #2ea043;
+      color: #7ee787;
+    }
+    .message.error {
+      background: rgba(248, 81, 73, 0.15);
+      border-color: #f85149;
+      color: #ffa198;
+    }
+    form {
+      display: grid;
+      gap: 0.75rem;
+      max-width: 480px;
+      margin-bottom: 1.5rem;
+      background: rgba(33, 38, 45, 0.6);
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    form label {
+      font-weight: 600;
+    }
+    input[type="file"],
+    input[type="text"] {
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: inherit;
+    }
+    input[type="text"]::placeholder {
+      color: #8b949e;
+    }
+    button {
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      border: 1px solid #238636;
+      background: #238636;
+      color: #ffffff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2ea043;
+    }
+    .hint {
+      margin-top: -0.5rem;
+      color: #8b949e;
+      font-size: 0.9rem;
+    }
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .metric-card {
+      flex: 1 1 180px;
+      background: rgba(33, 38, 45, 0.6);
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+    }
+    .metric-label {
+      color: #8b949e;
+      font-size: 0.9rem;
+    }
+    .metric-value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .chart-section,
+    .table-section,
+    .details-section {
+      margin-bottom: 2rem;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th, td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #30363d;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      background: rgba(22, 27, 34, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    td.attendance {
+      text-align: center;
+      font-weight: 600;
+      color: #7ee787;
+    }
+    td.attendance.present {
+      background: rgba(46, 160, 67, 0.1);
+    }
+    details {
+      background: rgba(33, 38, 45, 0.6);
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    ul {
+      margin: 0.5rem 0 0 1rem;
+      padding: 0;
+    }
+    @media (max-width: 720px) {
+      body {
+        padding: 1rem;
+      }
+      form {
+        width: 100%;
+      }
+      th, td {
+        white-space: normal;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Attendance Dashboard</h1>
+      <p>Import Microsoft Forms exports and explore attendance trends.</p>
+    </header>
+
+    {% if status and message %}
+    <div class="message {{ status }}">
+      {{ message }}
+    </div>
+    {% endif %}
+
+    <section class="import-section">
+      <h2>Import Attendance</h2>
+      <form method="post" action="{{ url_for('import_data') }}" enctype="multipart/form-data">
+        <label for="file">CSV or TSV export</label>
+        <input id="file" name="file" type="file" accept=".csv,.tsv,.txt" required>
+        <label for="source">Source label (optional)</label>
+        <input id="source" name="source" type="text" placeholder="Club meeting, workshop, etc.">
+        <button type="submit">Upload and Merge</button>
+        <p class="hint">Existing events are de-duplicated by timestamp per person.</p>
+      </form>
+    </section>
+
+    <section class="metrics">
+      <div class="metric-card">
+        <div class="metric-label">Participants tracked</div>
+        <div class="metric-value">{{ summary.total_profiles }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Sessions</div>
+        <div class="metric-value">{{ summary.dates | length }}</div>
+      </div>
+    </section>
+
+    <section class="chart-section">
+      <h2>Attendance Trend</h2>
+      <canvas id="attendanceChart" height="220"></canvas>
+    </section>
+
+    <section class="table-section">
+      <h2>Attendance Matrix</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              {% for date in summary.dates %}
+              <th>{{ date }}</th>
+              {% endfor %}
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in summary.profiles %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td>{{ row.email }}</td>
+              {% for attended in row.flags %}
+              <td class="attendance {% if attended %}present{% endif %}">
+                {% if attended %}&#10003;{% endif %}
+              </td>
+              {% endfor %}
+              <td>{{ row.event_count }}</td>
+            </tr>
+            {% endfor %}
+            {% if not summary.profiles %}
+            <tr>
+              <td colspan="{{ 3 + summary.dates | length }}">No attendance data yet. Import a file to get started.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="details-section">
+      <h2>Per Person Details</h2>
+      {% if summary.profiles %}
+        {% for row in summary.profiles %}
+        <details>
+          <summary>{{ row.name }} &lt;{{ row.email }}&gt;</summary>
+          <ul>
+            {% for event in row.events %}
+            <li>{{ event.timestamp }}{% if event.source %} ({{ event.source }}){% endif %}</li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endfor %}
+      {% else %}
+      <p>Import a CSV or TSV export to view each participant's timeline.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <script id="summary-data" type="application/json">
+    {{ summary | tojson }}
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var dataElement = document.getElementById('summary-data');
+      if (!dataElement) {
+        return;
+      }
+
+      var summary = JSON.parse(dataElement.textContent);
+      var counts = summary.counts || [];
+      var ctx = document.getElementById('attendanceChart');
+      if (!ctx || counts.length === 0) {
+        return;
+      }
+
+      var labels = counts.map(function (row) { return row.label; });
+      var values = counts.map(function (row) { return row.count; });
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Unique attendees',
+            data: values,
+            borderColor: '#58a6ff',
+            backgroundColor: 'rgba(88, 166, 255, 0.20)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.25,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1 }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
