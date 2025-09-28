@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import hmac
-import os
 from pathlib import Path
 from typing import List, Optional
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from .parser import ParseError, parse_rows_from_text
 from .report import build_matrix, collect_dates
@@ -63,42 +61,15 @@ def create_app(store_path: Optional[Path] = None) -> Flask:
 
     app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
 
-    username = os.environ.get("ATTENDANCE_AUTH_USERNAME")
-    password = os.environ.get("ATTENDANCE_AUTH_PASSWORD")
-
-    if not username or not password:
-        raise RuntimeError(
-            "ATTENDANCE_AUTH_USERNAME and ATTENDANCE_AUTH_PASSWORD must be set to start the web app."
-        )
-
-    credentials = (username, password)
-    app.config["AUTH_CREDENTIALS"] = credentials
-
     path = Path(store_path) if store_path else None
     store = AttendanceStore(path) if path else AttendanceStore()
 
     def refresh_store() -> None:
-        if store.path and store.path.exists():
+        if store.path.exists():
             store.load()
 
-    def ensure_authorized() -> Optional[Response]:
-        auth = request.authorization
-        auth_type = (auth.type or "").lower() if auth else ""
-        if auth and auth_type == "basic":
-            if hmac.compare_digest(auth.username or "", credentials[0]) and hmac.compare_digest(
-                auth.password or "", credentials[1]
-            ):
-                return None
-
-        response = Response("Authentication required", 401)
-        response.headers["WWW-Authenticate"] = 'Basic realm="Attendance Recorder"'
-        return response
-
     @app.route("/", methods=["GET"])
-    def index() -> Response | str:
-        unauthorized = ensure_authorized()
-        if unauthorized:
-            return unauthorized
+    def index() -> str:
         refresh_store()
         summary = _attendance_summary(store)
         status = request.args.get("status")
@@ -106,10 +77,7 @@ def create_app(store_path: Optional[Path] = None) -> Flask:
         return render_template("index.html", summary=summary, status=status, message=message)
 
     @app.route("/import", methods=["POST"])
-    def import_data() -> Response:
-        unauthorized = ensure_authorized()
-        if unauthorized:
-            return unauthorized
+    def import_data():
         uploaded = request.files.get("file")
         label = request.form.get("source") or None
 
@@ -145,10 +113,7 @@ def create_app(store_path: Optional[Path] = None) -> Flask:
         return redirect(url_for("index", status="success", message=feedback))
 
     @app.route("/api/data", methods=["GET"])
-    def api_data() -> Response:
-        unauthorized = ensure_authorized()
-        if unauthorized:
-            return unauthorized
+    def api_data():
         refresh_store()
         summary = _attendance_summary(store)
         return jsonify(summary)
