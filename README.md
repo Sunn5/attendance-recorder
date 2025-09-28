@@ -112,18 +112,35 @@ You can safely edit the JSON file by hand, but remember to keep the ISO timestam
 The web interface offers a friendlier way to explore the same dataset.
 
 1. Install Flask if you have not already: `pip install flask`.
-2. Start the server from the repository root:
+2. Configure HTTP Basic Auth credentials. The dashboard refuses to start unless both variables are set:
+   ```bash
+   export ATTENDANCE_AUTH_USERNAME="admin"
+   export ATTENDANCE_AUTH_PASSWORD="change-me"
+   ```
+   On Windows (PowerShell):
+   ```powershell
+   $Env:ATTENDANCE_AUTH_USERNAME = "admin"
+   $Env:ATTENDANCE_AUTH_PASSWORD = "change-me"
+   ```
+   Choose a strong password and keep it secret—every endpoint requires these credentials.
+3. Start the server from the repository root:
    ```bash
    python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000
    ```
    On Windows you can also run `start-attendance-dashboard.bat`, which launches the server and opens your browser automatically.
-3. Visit http://127.0.0.1:5000. Use the upload form to merge new CSV/TSV exports, see attendance trends, and inspect per-person timelines.
+4. Visit http://127.0.0.1:5000. Your browser will prompt for the username and password you configured. Use the upload form to merge new CSV/TSV exports, see attendance trends, and inspect per-person timelines.
 
 Useful endpoints:
 
 - `/`: Dashboard UI with charts, table, and detailed lists.
 - `/import`: POST endpoint used by the upload form to add new data.
 - `/api/data`: Returns the aggregated attendance summary as JSON; handy for building your own visualizations.
+
+### Authentication and deployment tips
+
+- All dashboard routes (`/`, `/import`, `/api/data`) require HTTP Basic Auth using `ATTENDANCE_AUTH_USERNAME` and `ATTENDANCE_AUTH_PASSWORD`. Requests without valid credentials receive `401 Unauthorized` responses.
+- Command-line uploads with `curl` or similar tools can pass credentials via `-u "$ATTENDANCE_AUTH_USERNAME:$ATTENDANCE_AUTH_PASSWORD"`.
+- Bind the server to `127.0.0.1` (the default) and access it through an SSH tunnel or reverse proxy that can add TLS if you need remote access. Avoid exposing the Flask development server directly to the public internet.
 
 The dashboard reads the same JSON store that the CLI manages, so you can alternate between the two without extra synchronization steps.
 
