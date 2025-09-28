@@ -11,6 +11,7 @@
 - [CLI Reference](#cli-reference)
 - [Data Storage](#data-storage)
 - [Web Dashboard](#web-dashboard)
+  - [Windows Quick Launch Script](#windows-quick-launch-script)
 - [Sample Workflow](#sample-workflow)
 - [Development Notes](#development-notes)
 - [License](#license)
@@ -122,13 +123,22 @@ The web interface offers a friendlier way to explore the same dataset.
    $Env:ATTENDANCE_AUTH_USERNAME = "admin"
    $Env:ATTENDANCE_AUTH_PASSWORD = "change-me"
    ```
-   Choose a strong password and keep it secret—every endpoint requires these credentials.
+   Choose a strong password and keep it secret; every endpoint requires these credentials.
 3. Start the server from the repository root:
    ```bash
    python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000
    ```
    On Windows you can also run `start-attendance-dashboard.bat`, which launches the server and opens your browser automatically.
 4. Visit http://127.0.0.1:5000. Your browser will prompt for the username and password you configured. Use the upload form to merge new CSV/TSV exports, see attendance trends, and inspect per-person timelines.
+
+### Windows Quick Launch Script
+
+`start-attendance-dashboard.bat` automates launching the dashboard on Windows. Run it from a shell where `ATTENDANCE_AUTH_USERNAME` and `ATTENDANCE_AUTH_PASSWORD` are already set. The script:
+
+- runs `python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000`
+- waits a few seconds for the server to boot, then opens your default browser to `http://127.0.0.1:5000`.
+
+Edit the batch file if you need a different store file, host, or port. The command uses whichever `python` is first on PATH, so activate your virtual environment in that shell before running it. If PowerShell reports an execution policy restriction, run the module directly or update the policy with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
 Useful endpoints:
 
