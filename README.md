@@ -1,78 +1,160 @@
-# attendance-recorder
+# Attendance Recorder
 
-`attendance-recorder` is a small command line utility that helps you organise
-attendance tables exported from Microsoft Forms.  You can import the table that
-you copied or downloaded from Forms (containing time, name, and e‑mail columns)
-and the tool will build a profile for each person, keeping track of every
-session they attended.  Once the data is imported you can list all profiles,
-inspect a person's attendance history, or display a matrix showing who attended
-each date.
+> Turn Microsoft Forms attendance exports into reusable, searchable records from the CLI or a lightweight web dashboard.
 
-## Getting started
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Command-Line Quick Start](#command-line-quick-start)
+- [CLI Reference](#cli-reference)
+- [Data Storage](#data-storage)
+- [Web Dashboard](#web-dashboard)
+- [Sample Workflow](#sample-workflow)
+- [Development Notes](#development-notes)
+- [License](#license)
 
-The command line workflow has no external dependencies beyond Python 3.10+.  The optional web dashboard depends on Flask (install with `pip install flask`).  You can run it
-directly from the repository:
+## Overview
+
+Attendance Recorder ingests CSV or TSV exports produced by Microsoft Forms and keeps track of who joined each session. Imports build a consolidated history per participant, which you can explore from the command line or in a small browser dashboard. All data lives in a single JSON file, making it easy to version, back up, or move between machines.
+
+## Features
+
+- Automatic parsing of Microsoft Forms exports with flexible header detection for time, name, and email columns.
+- De-duplicated attendance history: repeated submissions for the same person and timestamp are ignored.
+- CLI subcommands to list participants, inspect individual histories, render an attendance matrix, and export the raw JSON store.
+- Optional `--store` flag to work with multiple datasets or keep separate histories per team.
+- Lightweight Flask dashboard that lets you upload new exports, browse an interactive matrix, review per-person details, and view attendance trends via Chart.js.
+- Included sample data (`examples/sample_attendance.csv`) to test the workflow without real submissions.
+- Ships without external dependencies for the CLI; only Flask is required when you want to run the dashboard.
+
+## Requirements
+
+- Python 3.10 or newer.
+- Windows, macOS, or Linux.
+- Optional: Flask (install with `pip install flask`) if you plan to use the web dashboard.
+- Optional: a virtual environment (`python -m venv .venv`) to keep project dependencies isolated.
+
+## Installation
+
+```bash
+git clone <repository-url>
+cd attendance-recorder
+python -m venv .venv           # optional but recommended
+source .venv/bin/activate      # use .\.venv\Scripts\activate on Windows
+pip install --upgrade pip
+pip install flask              # only if you plan to use the dashboard
+```
+
+The CLI runs directly from the repository; there is no packaging step required. Skip the Flask install if you only need the command line tools.
+
+## Command-Line Quick Start
+
+Run the module to see the available commands:
 
 ```bash
 python -m attendance_recorder --help
 ```
 
-### Import attendance from Microsoft Forms
-
-Save your Microsoft Forms attendance table as a CSV/TSV file (you can also copy
-the table into a text file).  Then import it using the `import` command.  By
-default the data is stored in `attendance_data.json` in the current directory.
+Try the full flow with the bundled sample file:
 
 ```bash
 python -m attendance_recorder import examples/sample_attendance.csv --source "Weekly stand-up"
-```
-
-Each row is mapped to a participant profile using their e‑mail address.  The
-timestamp is converted into an attendance event so you can review their
-history later.
-
-### Review the stored data
-
-List all recorded profiles and see how many sessions each person has attended:
-
-```bash
 python -m attendance_recorder profiles
-```
-
-Show a person's attendance history:
-
-```bash
 python -m attendance_recorder history alex@example.com
-```
-
-Display a name/date table to quickly check who attended a session on each day:
-
-```bash
 python -m attendance_recorder table
-```
-
-Export the raw JSON data (useful for backups or feeding other tools):
-
-```bash
 python -m attendance_recorder export --output exported.json
 ```
 
-### Sample data
+By default, the data is written to `attendance_data.json` in the current directory. Use `--store path/to/file.json` on any command to point to a different dataset.
 
-A small sample export is included in `examples/sample_attendance.csv` so you can
-test the workflow without connecting to Microsoft Forms.
+## CLI Reference
 
-### Visualise attendance in the browser
+- `import <file> [--source LABEL]`: Load a CSV/TSV export. Each row becomes an attendance event, optionally labeled with the source string (meeting name, etc.).
+- `profiles`: Show every participant along with the number of sessions they have attended.
+- `history <email>`: List the timestamped events for a single participant.
+- `table`: Render an ASCII matrix of participants versus session dates.
+- `export [--output <file>]`: Dump the JSON store to stdout or to the specified file.
 
-You can launch a lightweight web dashboard to explore the stored data.
+Global options:
 
-1. Install Flask (once): `pip install flask`
-2. Ensure your `attendance_data.json` is up to date (import with the CLI if needed).
-3. Start the server from the repository root:
+- `--store <path>`: Override the location of the JSON store. Useful for keeping separate histories (for example, `--store data/training.json`).
+- `--help`: Display help for the main command or any subcommand.
+
+## Data Storage
+
+Attendance Recorder writes a single JSON document that is easy to inspect or commit to source control. The top-level keys are lower-cased email addresses:
+
+```json
+{
+  "alex@example.com": {
+    "name": "Alex Doe",
+    "email": "alex@example.com",
+    "events": [
+      {
+        "timestamp": "2024-03-01T09:05:00",
+        "source": "Weekly stand-up"
+      }
+    ]
+  }
+}
+```
+
+- Dates are stored in ISO 8601 format (`YYYY-MM-DDTHH:MM:SS`).
+- Duplicate events (same participant + timestamp) are filtered out automatically.
+- Column names are matched case-insensitively; common synonyms such as "Submission Time" or "Email Address" are supported. Missing required columns raise a clear parsing error.
+
+You can safely edit the JSON file by hand, but remember to keep the ISO timestamp format if you do.
+
+## Web Dashboard
+
+The web interface offers a friendlier way to explore the same dataset.
+
+1. Install Flask if you have not already: `pip install flask`.
+2. Start the server from the repository root:
    ```bash
    python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000
    ```
-4. Visit http://127.0.0.1:5000 in your browser. Upload additional CSV/TSV exports to merge them and refresh the charts.
+   On Windows you can also run `start-attendance-dashboard.bat`, which launches the server and opens your browser automatically.
+3. Visit http://127.0.0.1:5000. Use the upload form to merge new CSV/TSV exports, see attendance trends, and inspect per-person timelines.
 
-Use `Ctrl+C` in the terminal to stop the server.
+Useful endpoints:
 
+- `/`: Dashboard UI with charts, table, and detailed lists.
+- `/import`: POST endpoint used by the upload form to add new data.
+- `/api/data`: Returns the aggregated attendance summary as JSON; handy for building your own visualizations.
+
+The dashboard reads the same JSON store that the CLI manages, so you can alternate between the two without extra synchronization steps.
+
+## Sample Workflow
+
+1. Create or locate the directory where you want to keep the store.
+2. Import a new Microsoft Forms export:
+   ```bash
+   python -m attendance_recorder import /path/to/forms-export.csv --store data/team.json --source "Sprint Review"
+   ```
+3. Review attendance:
+   ```bash
+   python -m attendance_recorder table --store data/team.json
+   ```
+4. Share the data:
+   ```bash
+   python -m attendance_recorder export --store data/team.json --output reports/team-export.json
+   ```
+5. (Optional) Start the dashboard to present the results during a meeting.
+
+## Development Notes
+
+- Source code lives under `attendance_recorder/`. Key modules:
+  - `parser.py` for CSV parsing and header detection.
+  - `storage.py` for the JSON-backed data store.
+  - `report.py` for the ASCII table used by the `table` command.
+  - `webapp.py` for the Flask dashboard (templates in `attendance_recorder/templates/`).
+- Example data resides in `examples/`.
+- There is currently no automated test suite; manual verification typically involves importing the sample data and spot-checking the CLI outputs.
+- The project is intentionally dependency-light so you can embed it in existing automation scripts or extend it with minimal effort.
+
+## License
+
+Attendance Recorder is released under the [MIT License](LICENSE).
