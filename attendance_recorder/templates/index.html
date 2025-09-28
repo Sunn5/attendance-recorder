@@ -62,7 +62,8 @@
       font-weight: 600;
     }
     input[type="file"],
-    input[type="text"] {
+    input[type="text"],
+    select {
       padding: 0.5rem;
       border-radius: 6px;
       border: 1px solid #30363d;
@@ -71,6 +72,24 @@
     }
     input[type="text"]::placeholder {
       color: #8b949e;
+    }
+    .store-input-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .store-input-row input {
+      flex: 1 1 220px;
+      min-width: 200px;
+    }
+    .store-button-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .store-button-group button {
+      flex: 1 0 auto;
     }
     button {
       padding: 0.6rem 1rem;
@@ -197,6 +216,31 @@
     </div>
     {% endif %}
 
+    <section class="store-section">
+      <h2>Data Store</h2>
+      <p class="hint">Current file: <code>{{ current_store_name }}</code> ({{ current_store }})</p>
+      <form method="post" action="{{ url_for('create_store_route') }}">
+        <label for="new-store-name">Create new store</label>
+        <div class="store-input-row">
+          <input id="new-store-name" name="store_name" type="text" value="{{ suggested_store_name }}" data-default-name="{{ suggested_store_name }}">
+          <div class="store-button-group">
+            <button type="button" id="store-create-default">Create new</button>
+            <button type="submit">Done</button>
+          </div>
+        </div>
+        <p class="hint">Files are saved in {{ store_directory }}. Rename before hitting Done if needed; the .json extension is added automatically when omitted.</p>
+      </form>
+      <form method="post" action="{{ url_for('select_store_route') }}">
+        <label for="store-selector">Switch to an existing store</label>
+        <select id="store-selector" name="store_path">
+          {% for option in store_options %}
+          <option value="{{ option.value }}" {% if option.value == current_store %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">Switch</button>
+      </form>
+    </section>
+
     <section class="import-section">
       <h2>Import Attendance</h2>
       <form method="post" action="{{ url_for('import_data') }}" enctype="multipart/form-data">
@@ -288,6 +332,22 @@
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      var storeNameInput = document.getElementById('new-store-name');
+      var storeDefaultButton = document.getElementById('store-create-default');
+      if (storeNameInput) {
+        var defaultName = storeNameInput.dataset.defaultName || storeNameInput.value || 'attendance_data.json';
+        if (!storeNameInput.value) {
+          storeNameInput.value = defaultName;
+        }
+        if (storeDefaultButton) {
+          storeDefaultButton.addEventListener('click', function () {
+            storeNameInput.value = defaultName;
+            storeNameInput.focus();
+            storeNameInput.select();
+          });
+        }
+      }
+
       var dataElement = document.getElementById('summary-data');
       if (!dataElement) {
         return;

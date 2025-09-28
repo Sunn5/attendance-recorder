@@ -61,7 +61,7 @@ class AttendanceStore:
     """Persisted storage for attendance profiles."""
 
     def __init__(self, path: Path = DEFAULT_STORAGE_FILE) -> None:
-        self.path = Path(path)
+        self.path = Path(path).expanduser()
         self._profiles: Dict[str, PersonProfile] = {}
         if self.path.exists():
             self.load()
@@ -76,6 +76,7 @@ class AttendanceStore:
     def save(self) -> None:
         payload = {email: profile.to_dict() for email, profile in self._profiles.items()}
         text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(text, encoding="utf-8")
 
     def profiles(self) -> Iterable[PersonProfile]:

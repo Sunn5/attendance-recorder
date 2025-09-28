@@ -18,7 +18,7 @@
 
 ## Overview
 
-Attendance Recorder ingests CSV or TSV exports produced by Microsoft Forms and keeps track of who joined each session. Imports build a consolidated history per participant, which you can explore from the command line or in a small browser dashboard. All data lives in a single JSON file, making it easy to version, back up, or move between machines.
+Attendance Recorder ingests CSV or TSV exports produced by Microsoft Forms and keeps track of who joined each session. Imports build a consolidated history per participant, which you can explore from the command line or in a small browser dashboard. All data lives in JSON files you can create per team, making them easy to version, back up, or move between machines.
 
 ## Features
 
@@ -26,7 +26,7 @@ Attendance Recorder ingests CSV or TSV exports produced by Microsoft Forms and k
 - De-duplicated attendance history: repeated submissions for the same person and timestamp are ignored.
 - CLI subcommands to list participants, inspect individual histories, render an attendance matrix, and export the raw JSON store.
 - Optional `--store` flag to work with multiple datasets or keep separate histories per team.
-- Lightweight Flask dashboard that lets you upload new exports, browse an interactive matrix, review per-person details, and view attendance trends via Chart.js.
+- Lightweight Flask dashboard that lets you upload new exports, create or switch between store files, browse an interactive matrix, review per-person details, and view attendance trends via Chart.js.
 - Included sample data (`examples/sample_attendance.csv`) to test the workflow without real submissions.
 - Ships without external dependencies for the CLI; only Flask is required when you want to run the dashboard.
 
@@ -108,6 +108,8 @@ Attendance Recorder writes a single JSON document that is easy to inspect or com
 
 You can safely edit the JSON file by hand, but remember to keep the ISO timestamp format if you do.
 
+You can manage multiple store files: use the CLI `--store` option or the dashboard's Data Store panel to create and switch between them. When creating a new store from the dashboard, it suggests the next available `attendance_data[n].json` name, which you can rename before saving.
+
 ## Web Dashboard
 
 The web interface offers a friendlier way to explore the same dataset.
@@ -118,7 +120,7 @@ The web interface offers a friendlier way to explore the same dataset.
    python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000
    ```
    On Windows you can also run `start-attendance-dashboard.bat`, which launches the server and opens your browser automatically.
-3. Visit http://127.0.0.1:5000. Use the upload form to merge new CSV/TSV exports, see attendance trends, and inspect per-person timelines.
+3. Visit http://127.0.0.1:5000. Use the upload form to merge new CSV/TSV exports, see attendance trends, inspect per-person timelines, and manage store files from the Data Store panel (use `Create new` for the next `attendance_data[n].json` suggestion or rename it before hitting `Done`).
 
 ### Windows Quick Launch Script
 
@@ -127,7 +129,7 @@ The web interface offers a friendlier way to explore the same dataset.
 - runs `python -m attendance_recorder.webapp --store attendance_data.json --host 127.0.0.1 --port 5000`
 - waits a few seconds for the server to boot, then opens your default browser to `http://127.0.0.1:5000`.
 
-Edit the batch file if you need a different store file, host, or port. The command uses whichever `python` is first on PATH, so activate your virtual environment in that shell before running it. If PowerShell reports an execution policy restriction, run the module directly or update the policy with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+Edit the batch file if you need a different store file, host, or port. The command uses whichever `python` is first on PATH, so activate your virtual environment in that shell before running it. If PowerShell reports an execution policy restriction, run the module directly or update the policy with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Once the server is running, use the dashboard's Data Store controls to switch to another JSON file or create a new one without touching the script.
 
 Useful endpoints:
 
@@ -152,7 +154,7 @@ The dashboard reads the same JSON store that the CLI manages, so you can alterna
    ```bash
    python -m attendance_recorder export --store data/team.json --output reports/team-export.json
    ```
-5. (Optional) Start the dashboard to present the results during a meeting.
+5. (Optional) Start the dashboard to present the results during a meeting. Use the Data Store panel to spin up a fresh store for another team without leaving the browser.
 
 ## Development Notes
 

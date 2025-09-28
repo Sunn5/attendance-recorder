@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -9,7 +10,7 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from .parser import ParseError, parse_rows_from_text
 from .report import build_matrix, collect_dates
-from .storage import AttendanceStore
+from .storage import AttendanceStore, DEFAULT_STORAGE_FILE
 
 
 def _sorted_profiles(store: AttendanceStore) -> List:
@@ -61,20 +62,100 @@ def create_app(store_path: Optional[Path] = None) -> Flask:
 
     app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
 
-    path = Path(store_path) if store_path else None
-    store = AttendanceStore(path) if path else AttendanceStore()
+    initial_path = Path(store_path).expanduser() if store_path else DEFAULT_STORAGE_FILE
+    current_store_path = initial_path.resolve()
+    store = AttendanceStore(current_store_path)
+    stores_directory = current_store_path.parent
 
-    def refresh_store() -> None:
-        if store.path.exists():
+    def normalize_path(path_value) -> Path:
+        return Path(path_value).expanduser().resolve()
+
+    def available_store_files() -> List[Path]:
+        files: List[Path] = []
+        if stores_directory.exists():
+            for candidate in stores_directory.glob("*.json"):
+                if candidate.is_file():
+                    files.append(candidate.resolve())
+        unique: List[Path] = []
+        seen = set()
+        for candidate in sorted(files, key=lambda item: item.name.lower()):
+            if candidate not in seen:
+                seen.add(candidate)
+                unique.append(candidate)
+        return unique
+
+    def set_store_path(target: Path) -> Optional[str]:
+        nonlocal store, current_store_path, stores_directory
+        try:
+            resolved = normalize_path(target)
+        except OSError as exc:
+            return f"Unable to resolve store path: {exc}"
+        try:
+            candidate = AttendanceStore(resolved)
+        except json.JSONDecodeError as exc:
+            return f"Store file contains invalid JSON: {exc}"
+        except OSError as exc:
+            return f"Unable to open store file: {exc}"
+        store = candidate
+        current_store_path = resolved
+        stores_directory = current_store_path.parent
+        return None
+
+    def refresh_store() -> Optional[str]:
+        if not store.path.exists():
+            return None
+        try:
             store.load()
+        except json.JSONDecodeError as exc:
+            return f"Unable to read store file: {exc}"
+        except OSError as exc:
+            return f"Unable to read store file: {exc}"
+        return None
+
+    def store_options() -> List[dict[str, str]]:
+        options: List[dict[str, str]] = []
+        seen = set()
+        for candidate in available_store_files():
+            seen.add(candidate)
+            options.append({"label": candidate.name, "value": str(candidate)})
+        if current_store_path not in seen:
+            options.insert(0, {"label": current_store_path.name, "value": str(current_store_path)})
+        return options
+
+    def next_default_store_name() -> str:
+        existing_names = {candidate.name for candidate in available_store_files()}
+        existing_names.add(current_store_path.name)
+        base_name = "attendance_data"
+        suffix = ".json"
+        if f"{base_name}{suffix}" not in existing_names:
+            return f"{base_name}{suffix}"
+        index = 2
+        while True:
+            candidate = f"{base_name}{index}{suffix}"
+            if candidate not in existing_names:
+                return candidate
+            index += 1
 
     @app.route("/", methods=["GET"])
     def index() -> str:
-        refresh_store()
+        load_error = refresh_store()
         summary = _attendance_summary(store)
         status = request.args.get("status")
         message = request.args.get("message")
-        return render_template("index.html", summary=summary, status=status, message=message)
+        if load_error and not status:
+            status = "error"
+            message = load_error
+        return render_template(
+            "index.html",
+            summary=summary,
+            status=status,
+            message=message,
+            current_store=str(current_store_path),
+            current_store_name=current_store_path.name,
+            store_directory=str(stores_directory),
+            store_options=store_options(),
+            suggested_store_name=next_default_store_name(),
+        )
 
     @app.route("/import", methods=["POST"])
     def import_data():
@@ -111,6 +192,66 @@ def create_app(store_path: Optional[Path] = None) -> Flask:
             feedback = "No new rows were imported."
 
         return redirect(url_for("index", status="success", message=feedback))
+
+    @app.route("/store/create", methods=["POST"])
+    def create_store_route():
+        name = (request.form.get("store_name") or "").strip()
+        if not name:
+            return redirect(url_for("index", status="error", message="Provide a name for the store file."))
+        if Path(name).name != name:
+            return redirect(url_for("index", status="error", message="Provide a file name without directories."))
+        if not name.lower().endswith(".json"):
+            name += ".json"
+
+        candidate_path = (stores_directory / name).expanduser().resolve()
+        if candidate_path.exists():
+            if not candidate_path.is_file():
+                return redirect(url_for("index", status="error", message="A directory with that name already exists."))
+            error_message = set_store_path(candidate_path)
+            if error_message:
+                return redirect(url_for("index", status="error", message=error_message))
+            return redirect(url_for("index", status="success", message=f"Switched to existing store '{candidate_path.name}'."))
+
+        try:
+            candidate_path.parent.mkdir(parents=True, exist_ok=True)
+            candidate_path.write_text("{}\n", encoding="utf-8")
+        except OSError as exc:
+            return redirect(url_for("index", status="error", message=f"Unable to create store file: {exc}"))
+
+        error_message = set_store_path(candidate_path)
+        if error_message:
+            return redirect(url_for("index", status="error", message=error_message))
+
+        store.save()
+        return redirect(url_for("index", status="success", message=f"Created store '{candidate_path.name}'."))
+
+    @app.route("/store/select", methods=["POST"])
+    def select_store_route():
+        target_raw = (request.form.get("store_path") or "").strip()
+        if not target_raw:
+            return redirect(url_for("index", status="error", message="Select a store file from the list."))
+
+        try:
+            target_path = normalize_path(target_raw)
+        except OSError as exc:
+            return redirect(url_for("index", status="error", message=f"Unable to resolve selected store: {exc}"))
+
+        allowed_paths = {current_store_path}
+        for candidate in available_store_files():
+            allowed_paths.add(candidate)
+
+        if target_path not in allowed_paths:
+            return redirect(url_for("index", status="error", message="Select a store file from the provided options."))
+        if not target_path.exists():
+            return redirect(url_for("index", status="error", message="Selected store file does not exist."))
+        if not target_path.is_file():
+            return redirect(url_for("index", status="error", message="Selected store is not a file."))
+
+        error_message = set_store_path(target_path)
+        if error_message:
+            return redirect(url_for("index", status="error", message=error_message))
+
+        return redirect(url_for("index", status="success", message=f"Switched to store '{target_path.name}'."))
 
     @app.route("/api/data", methods=["GET"])
     def api_data():
